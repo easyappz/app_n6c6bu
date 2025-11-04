@@ -58,7 +58,6 @@ class MessageSerializer(serializers.ModelSerializer):
             return False
         if obj.author_id == request.user.id:
             return True
-        # Check membership role in default room
         room, _ = ChatRoom.objects.get_or_create(name='Общий')
         membership = ChatMembership.objects.filter(user=request.user, room=room).first()
         if not membership:
@@ -72,6 +71,16 @@ class MessageCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Message
         fields = ("content",)
+
+    def validate_content(self, value: str) -> str:
+        if not isinstance(value, str):
+            raise serializers.ValidationError("Content must be a string.")
+        cleaned = value.strip()
+        if not cleaned:
+            raise serializers.ValidationError("Content cannot be empty.")
+        if len(cleaned) > 1000:
+            raise serializers.ValidationError("Content is too long (max 1000 chars).")
+        return cleaned
 
     def create(self, validated_data):
         request = self.context.get("request")

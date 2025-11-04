@@ -38,7 +38,6 @@ class ChatMembership(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        unique_together = ("user", "room")
         verbose_name = "Chat Membership"
         verbose_name_plural = "Chat Memberships"
 
