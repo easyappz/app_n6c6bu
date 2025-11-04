@@ -1,0 +1,228 @@
+openapi: 3.0.3
+info:
+  title: Group Chat API
+  version: 1.0.0
+  description: HTTP-only group chat with JWT auth, roles, and message history.
+servers:
+  - url: /
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    UserPublic:
+      type: object
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+      required: [id, username]
+    TokenResponse:
+      type: object
+      properties:
+        token:
+          type: string
+        user:
+          $ref: '#/components/schemas/UserPublic'
+        role:
+          type: string
+          enum: [ADMIN, MODERATOR, MEMBER]
+      required: [token, user, role]
+    RegisterRequest:
+      type: object
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+          format: password
+          minLength: 6
+      required: [username, password]
+    LoginRequest:
+      type: object
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+          format: password
+      required: [username, password]
+    ChatRoom:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+      required: [id, name]
+    Message:
+      type: object
+      properties:
+        id:
+          type: integer
+        author:
+          $ref: '#/components/schemas/UserPublic'
+        content:
+          type: string
+          maxLength: 1000
+        created_at:
+          type: string
+          format: date-time
+        can_delete:
+          type: boolean
+      required: [id, author, content, created_at, can_delete]
+    MessageCreate:
+      type: object
+      properties:
+        content:
+          type: string
+          maxLength: 1000
+      required: [content]
+    PaginatedMessages:
+      type: object
+      properties:
+        count:
+          type: integer
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Message'
+      required: [count, results]
+paths:
+  /api/auth/register/:
+    post:
+      summary: Register a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+            examples:
+              sample:
+                value: {"username": "alice", "password": "secret123"}
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '400':
+          description: Bad Request
+  /api/auth/login/:
+    post:
+      summary: Login and receive JWT token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            examples:
+              sample:
+                value: {"username": "alice", "password": "secret123"}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '400':
+          description: Invalid credentials
+  /api/auth/me/:
+    get:
+      summary: Get current user and role
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: {type: integer}
+                  username: {type: string}
+                  role: {type: string, enum: [ADMIN, MODERATOR, MEMBER]}
+                required: [id, username, role]
+        '401': { description: Unauthorized }
+  /api/chat/room/:
+    get:
+      summary: Get default chat room
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatRoom'
+        '401': { description: Unauthorized }
+  /api/chat/messages/:
+    get:
+      summary: List messages of the default room
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer, default: 50, maximum: 200 }
+          required: false
+        - in: query
+          name: offset
+          schema: { type: integer, default: 0 }
+          required: false
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedMessages'
+        '401': { description: Unauthorized }
+    post:
+      summary: Create a new message in the default room
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MessageCreate'
+            examples:
+              sample:
+                value: {"content": "Hello everyone!"}
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+        '400': { description: Bad Request }
+        '401': { description: Unauthorized }
+  /api/chat/messages/{id}/:
+    delete:
+      summary: Delete a message by id (owner or MODERATOR/ADMIN)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        '204': { description: No Content }
+        '401': { description: Unauthorized }
+        '403': { description: Forbidden }
+        '404': { description: Not Found }
+security:
+  - bearerAuth: []
